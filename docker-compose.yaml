@@ -1,5 +1,4 @@
 # Basic Airflow cluster configuration for CeleryExecutor with Redis and PostgreSQL.
----
 version: '3'
 x-airflow-common:
   &airflow-common
@@ -155,8 +154,8 @@ services:
 
   airflow-init:
     <<: *airflow-common
-    entrypoint: /bin/bash
     command:
+    - bash
     - -c
     - |
       function ver() {
@@ -217,8 +216,8 @@ services:
       fi
       mkdir -p /sources/logs /sources/dags /sources/plugins
       chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-      /entrypoint airflow version
-      /entrypoint airflow connections add 'postgres_new' --conn-uri "postgres://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}"
+      airflow version
+      airflow connections add 'postgres_new' --conn-uri "postgres://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}"
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'

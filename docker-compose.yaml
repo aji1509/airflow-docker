@@ -22,6 +22,8 @@ x-airflow-common:
     AIRFLOW__WEBSERVER__RBAC: 'true'
     _AIRFLOW_DB_MIGRATE: 'true'
     _AIRFLOW_WWW_USER_CREATE: 'true'
+    _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+    _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
     AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
   secrets:
     - webserver_secret_key

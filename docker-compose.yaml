@@ -12,9 +12,9 @@ x-airflow-common:
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres/${POSTGRES_DB:-airflow}
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres/${POSTGRES_DB:-airflow}
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres/${POSTGRES_DB:-airflow}
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
     AIRFLOW__CORE__FERNET_KEY: 81HqDtbqAywKSOumSha3BhWNOdQ26slT6K0YaZeZyPs=
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
@@ -45,9 +45,9 @@ services:
     image: postgres:13
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-airflow}
-      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
       POSTGRES_DB: ${POSTGRES_DB:-airflow}
-      POSTGRES_MULTIPLE_DATABASES: ${POSTGRES_DB:-userdata}
+      POSTGRES_MULTIPLE_DATABASES: userdata
     volumes:
       - ./pg-init-scripts:/docker-entrypoint-initdb.d
       - postgres-db-volume:/var/lib/postgresql/data
@@ -56,7 +56,7 @@ services:
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+      test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 5s
       retries: 5
     restart: always
@@ -223,13 +223,13 @@ services:
       mkdir -p /sources/logs /sources/dags /sources/plugins
       chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
       /entrypoint airflow version
-      /entrypoint airflow connections add 'postgres_new' --conn-uri 'postgres://${POSTGRES_USER:-airflow}:$(cat /run/secrets/postgres_password)@postgres:5432/${POSTGRES_DB:-airflow}'
+      /entrypoint airflow connections add 'postgres_new' --conn-uri "postgres://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}"
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
       _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_WWW_USER_USERNAME:-airflow}
-      _AIRFLOW_WWW_USER_PASSWORD_FILE: /run/secrets/airflow_admin_password
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_WWW_USER_PASSWORD:-airflow}
     secrets:
       - airflow_admin_password
       - postgres_password

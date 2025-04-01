@@ -22,13 +22,9 @@ x-airflow-common:
     AIRFLOW__WEBSERVER__RBAC: 'true'
     _AIRFLOW_DB_MIGRATE: 'true'
     _AIRFLOW_WWW_USER_CREATE: 'true'
-    _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
-    _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+    _AIRFLOW_WWW_USER_USERNAME: airflow
+    _AIRFLOW_WWW_USER_PASSWORD: airflow
     AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
-  secrets:
-    - webserver_secret_key
-    - postgres_password
-    - airflow_admin_password
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -53,8 +49,6 @@ services:
     volumes:
       - ./pg-init-scripts:/docker-entrypoint-initdb.d
       - postgres-db-volume:/var/lib/postgresql/data
-    secrets:
-      - postgres_password
     ports:
       - "5433:5432"
     healthcheck:
@@ -161,9 +155,8 @@ services:
 
   airflow-init:
     <<: *airflow-common
-    # entrypoint: /bin/bash
+    entrypoint: /bin/bash
     command:
-    - bash
     - -c
     - |
       function ver() {
@@ -230,11 +223,8 @@ services:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_WWW_USER_USERNAME:-airflow}
-      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_WWW_USER_PASSWORD:-airflow}
-    secrets:
-      - airflow_admin_password
-      - postgres_password
+      _AIRFLOW_WWW_USER_USERNAME: airflow
+      _AIRFLOW_WWW_USER_PASSWORD: airflow
     user: "0:0"
     volumes:
       - .:/sources
@@ -266,13 +256,5 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
-secrets:
-  webserver_secret_key:
-    file: ./secrets/webserver_secret_key
-  postgres_password:
-    file: ./secrets/postgres_password
-  airflow_admin_password:
-    file: ./secrets/airflow_admin_password
-
 volumes:
   postgres-db-volume:

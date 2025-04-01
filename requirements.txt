@@ -1,3 +1,6 @@
-apache-airflow
-requests
-td-client
+apache-airflow[celery]==${AIRFLOW_VERSION}
+apache-airflow-providers-postgres
+apache-airflow-providers-redis
+psycopg2-binary
+redis
+flower

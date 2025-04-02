@@ -23,8 +23,8 @@ RUN mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins /opt/airfl
 USER airflow
 
 # Install additional Python packages if needed (copy requirements from the master)
-COPY requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
+COPY requirements-worker.txt /requirements-worker.txt
+RUN pip install --no-cache-dir -r /requirements-worker.txt
 
 # Set environment variables to connect to the master node
 ENV AIRFLOW__CORE__EXECUTOR=CeleryExecutor \

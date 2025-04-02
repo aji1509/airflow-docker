@@ -21,9 +21,18 @@ x-airflow-common:
     AIRFLOW__WEBSERVER__RBAC: 'true'
     _AIRFLOW_DB_MIGRATE: 'true'
     _AIRFLOW_WWW_USER_CREATE: 'true'
-    _AIRFLOW_WWW_USER_USERNAME: airflow
-    _AIRFLOW_WWW_USER_PASSWORD: airflow
-    AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
+    _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_WWW_USER_USERNAME:-airflow}
+    _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_WWW_USER_PASSWORD:-airflow}
+    AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE: 10
+    AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE: 1800
+    AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW: 5
+    AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_TIMEOUT: 30
+    AIRFLOW__DATABASE__SQL_ALCHEMY_RETRY_LIMIT: 10
+    AIRFLOW__DATABASE__SQL_ALCHEMY_RETRY_DELAY: 5
+    AIRFLOW__WEBSERVER__RATE_LIMIT_STORAGE_URI: "redis://:@redis:6379/1"
+    FLASK_APP_RATE_LIMIT_STORAGE_URI: "redis://:@redis:6379/1"
+    FLASK_LIMITER_STORAGE_URI: "redis://:@redis:6379/1"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs
@@ -44,7 +53,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-airflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airflow}
       POSTGRES_DB: ${POSTGRES_DB:-airflow}
-      POSTGRES_MULTIPLE_DATABASES: userdata
+      POSTGRES_MULTIPLE_DATABASES: airflow
     volumes:
       - ./pg-init-scripts:/docker-entrypoint-initdb.d
       - postgres-db-volume:/var/lib/postgresql/data
@@ -52,9 +61,13 @@ services:
       - "5433:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 5s
-      retries: 5
+      interval: 10s
+      timeout: 30s
+      retries: 10
     restart: always
+    command: >
+      bash -c "chmod +x /docker-entrypoint-initdb.d/*.sh && 
+              docker-entrypoint.sh postgres"
 
   redis:
     image: redis:latest
@@ -143,9 +156,9 @@ services:
     command: triggerer
     healthcheck:
       test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      interval: 30s
+      timeout: 30s
+      retries: 10
     restart: always
     depends_on:
       <<: *airflow-common-depends-on
@@ -154,14 +167,14 @@ services:
 
   airflow-init:
     <<: *airflow-common
+    entrypoint: /bin/bash
     command:
-    - bash
     - -c
     - |
       function ver() {
         printf "%04d%04d%04d%04d" $${1//./ }
       }
-      airflow_version=$$(AIRFLOW__LOGGING__LOGGING_LEVEL=INFO && gosu airflow airflow version)
+      airflow_version=$$(gosu airflow airflow version)
       airflow_version_comparable=$$(ver $${airflow_version})
       min_airflow_version=2.2.0
       min_airflow_version_comparable=$$(ver $${min_airflow_version})
@@ -216,17 +229,56 @@ services:
       fi
       mkdir -p /sources/logs /sources/dags /sources/plugins
       chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
-      airflow version
-      airflow connections add 'postgres_new' --conn-uri "postgres://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}"
+      
+      # Create directories and fix permissions
+      mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+      chown -R "${AIRFLOW_UID}:0" /opt/airflow
+      
+      # Display Airflow version
+      gosu airflow airflow version
+      
+      sleep 10
+      
+      # Wait for the postgres service to be ready
+      echo "Waiting for Postgres to be ready..."
+      while ! nc -z postgres 5432; do
+        sleep 1
+      done
+      
+      echo "Postgres is ready. Initializing Airflow db..."
+      gosu airflow airflow db migrate
+      
+      # Check if connection already exists before adding
+      echo "Setting up connections..."
+      if ! gosu airflow airflow connections get postgres_new > /dev/null 2>&1; then
+        gosu airflow airflow connections add 'postgres_new' \
+          --conn-uri "postgres://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}"
+      else
+        echo "Connection postgres_new already exists. Skipping creation."
+      fi
+      
+      # Create admin user
+      echo "Creating admin user if not exists..."
+      gosu airflow airflow users create \
+        --username ${_AIRFLOW_WWW_USER_USERNAME} \
+        --firstname Admin \
+        --lastname User \
+        --role Admin \
+        --email admin@example.com \
+        --password ${_AIRFLOW_WWW_USER_PASSWORD} \
+        || echo "User may already exist"
     environment:
       <<: *airflow-common-env
       _AIRFLOW_DB_MIGRATE: 'true'
       _AIRFLOW_WWW_USER_CREATE: 'true'
-      _AIRFLOW_WWW_USER_USERNAME: airflow
-      _AIRFLOW_WWW_USER_PASSWORD: airflow
     user: "0:0"
     volumes:
       - .:/sources
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   airflow-cli:
     <<: *airflow-common
@@ -257,3 +309,4 @@ services:
         condition: service_completed_successfully
 volumes:
   postgres-db-volume:
+

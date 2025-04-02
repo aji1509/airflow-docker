@@ -38,6 +38,7 @@ x-airflow-common:
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./sql:/opt/airflow/sql
+    - ./scripts:/opt/airflow/scripts
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
@@ -227,11 +228,11 @@ services:
         echo "   https://airflow.apache.org/docs/apache-airflow/stable/start/docker.html#before-you-begin"
         echo
       fi
-      mkdir -p /sources/logs /sources/dags /sources/plugins
-      chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins}
+      mkdir -p /sources/logs /sources/dags /sources/plugins /sources/scripts
+      chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins,scripts}
       
       # Create directories and fix permissions
-      mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins
+      mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins /opt/airflow/scripts
       chown -R "${AIRFLOW_UID}:0" /opt/airflow
       
       # Display Airflow version

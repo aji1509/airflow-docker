@@ -1,209 +1,143 @@
-<p align="center">
-  <a href="" rel="noopener">
- <img width=100px height=100px src="https://cwiki.apache.org/confluence/download/attachments/145723561/airflow_white_bg.png?api=v2" alt="Project logo"></a>
-</p>
+# Apache Airflow Docker Setup
 
-<h3 align="center">Airflow Made Easy | Local Setup Using Docker</h3>
+This repository contains Docker configuration for setting up Apache Airflow with CeleryExecutor for distributed task processing. The setup includes a master node and worker nodes configuration.
 
+## Features
 
-
-[![Execute Airflow Unit Tests](https://github.com/anilkulkarni87/airflow-docker/actions/workflows/main.yml/badge.svg)](https://github.com/anilkulkarni87/airflow-docker/actions/workflows/main.yml)
-
-[![Deploy GitHub Pages](https://github.com/anilkulkarni87/airflow-docker/actions/workflows/jekyll-gh-pages.yml/badge.svg)](https://github.com/anilkulkarni87/airflow-docker/actions/workflows/jekyll-gh-pages.yml)
-
-<p align="center"> This is my Apache Airflow Local development setup using docker-compose. It will also include some sample DAGs and workflows.
-    <br> 
-</p>
-
-#### Recent Updates:
-03-Dec-2023
-- Upgrade to airflow 2.7.3
-- Upgraded superset to add secret key
-- Added superset database connection image
+- Uses CeleryExecutor with Redis and PostgreSQL
+- Scalable architecture with separate master and worker nodes
 - Works on M1 Mac
+- Includes Superset, Minio, and other useful services
 
-03-May-2022
-- Added Dockerfile to extend airflow image
-- Adding additional Pypi package (td-client)
-- Upgrade to Airflow 2.3.0
+## Prerequisites
 
-29-Jun-2021
-- Updated image to Airflow 2.1.1
-- Leveraging _PIP_ADDITIONAL_REQUIREMENTS to install additional dependencies
-- Developing and testing operators for Treasure Data
-- Read more at [Treasure Data](./TreasureData.md)
+- Docker and Docker Compose
+- Git
+- Basic understanding of Airflow concepts
 
-## 📝 Table of Contents
+## Directory Structure
 
-- [About](#about)
-- [Data Engineering Projects](#projects)
-- [Data Visualization](#superset)
-- [Getting Started](#getting_started)
-- [Usage](#usage)
-- [Running the tests](#tests)
-- [Github Workflow](#githubworkflow)
-- [Built Using](#built_using)
-- [Authors](#authors)
-- [Acknowledgments](#acknowledgement)
-- [Cleanup](#cleanup)
+The setup uses several directories that are mounted into the containers:
 
-## 🧐 About <a name = "about"></a>
+- `dags/`: Place your Airflow DAG files here
+- `logs/`: Airflow logs will be stored here
+- `plugins/`: Custom Airflow plugins
+- `scripts/`: Custom scripts for Airflow tasks
+- `sql/`: SQL files for database operations
+- `data/`: Data directory for MinIO storage
+- `pg-init-scripts/`: Initialization scripts for PostgreSQL
 
-Setup Apache Airflow 2.0 locally on Windows 10 (WSL2) via Docker Compose. The oiginal docker-compose.yaml file was taken from the official [github](#https://github.com/apache/airflow/blob/master/docs/apache-airflow/start/docker-compose.yaml) repo. 
+These directories are mounted in both the master and worker containers to ensure consistency across the cluster.
 
-This contains service definitions for
-- airflow-scheduler
-- airflow-webserver
-- airflow-worker
-- airflow-init - To initialize db and create user
-- flower
-- redis
-- postgres - This is backend for airflow. I am also creating additional database `userdata` as a backend for my data flow. This is not recommended. Its ideal to have separate databases for airflow and your data.
+## Environment Variables
 
-I have added additional command to add a airflow db connection as part of the docker-compose
-
-Directories I am mounting:
-- ./dags
-- ./logs
-- ./plugins
-- ./sql - for Sql files. We can leveraje jinja templating in our queries. Refer the sample Dag.
-- ./test - Has Unit tests for Airflow Dags.
-- ./pg-init-scripts - This has scripts to create additional database in postgres.
-
-## Data Engineering Projects <a name = "projects"></a>
-Here you will find some personal projects that I have worked on. These projects will throw light on some of the airflow features I have used and learnings related to other technologies. 
-- Project 1 -> [Get Covid testing data](./COVID_NY.md)
-
-## Data Visualization <a name = "superset"></a>
-To experiment with Apache Superset. Read more [here](./SUPERSET.md)
-
-## 🏁 Getting Started <a name = "getting_started"></a>
-
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. 
-
-Clone this repo to your machine
+Create a `.env` file in the root directory with the following variables:
 
 ```
-docker-compose -f docker-compose.yaml up airflow-init
-docker-compose -f docker-compose.yaml up
+AIRFLOW_UID=50000
+AIRFLOW_VERSION=2.7.3
+PYTHON_VERSION=3.10
+POSTGRES_USER=airflow
+POSTGRES_PASSWORD=airflow
+POSTGRES_DB=airflow
+AIRFLOW_WWW_USER_USERNAME=airflow
+AIRFLOW_WWW_USER_PASSWORD=airflow
 ```
 
-### Prerequisites
+## Master Node Setup
 
-What things you need to install the software and how to install them.
+### 1. Prepare Directory Structure
 
-You should have [Docker](#https://docs.docker.com/engine/installation/) and [Docker-compose](#https://docs.docker.com/compose/install/) v1.27.0 or more installed on your machine
-
-- Install and configure [WSL2](#https://docs.microsoft.com/en-us/windows/wsl/tutorials/wsl-containers)
-- I also had to reset my Ubuntu installation and thats when it asked me to create a user. 
-
-### Installing
-
-A step by step series of examples that tell you how to get a development env running.
-
-Clone the Repo
-
-```
-git clone
+```bash
+mkdir -p dags logs plugins scripts data pg-init-scripts sql
 ```
 
-Start docker build
+### 2. Build and Start the Master Node
 
-```
-#To extend airflow image
-docker-compose build
-
-docker-compose -f docker-compose.yaml up airflow-init
-
-docker-compose -f docker-compose.yaml up
+```bash
+# Start the Airflow master node
+docker-compose -f docker-compose.yaml up -d
 ```
 
-Keep checking docker processes to make sure all machines are helthy
+This will initialize the database, create the admin user, and start all required services:
+- PostgreSQL
+- Redis
+- Airflow Webserver
+- Airflow Scheduler
+- Airflow Triggerer
 
+### 3. Access Airflow UI
+
+The Airflow UI will be available at: `http://localhost:8080`
+
+Default credentials are:
+- Username: airflow
+- Password: airflow
+
+## Worker Node Setup
+
+To set up worker nodes that connect to your existing master node:
+
+### 1. Copy Required Files to Worker Machine
+
+On each worker machine, copy the following files:
+- `worker.dockerfile`
+- `worker-compose.yaml`
+- `requirements.txt`
+
+### 2. Update Worker Configuration
+
+Edit the `worker.dockerfile` to point to your master node:
+
+```dockerfile
+# Set environment variables to connect to the master node
+ENV AIRFLOW__CORE__EXECUTOR=CeleryExecutor \
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@YOUR_MASTER_IP:5433/airflow \
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@YOUR_MASTER_IP:5433/airflow \
+    AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@YOUR_MASTER_IP:5433/airflow \
+    AIRFLOW__CELERY__BROKER_URL=redis://:@YOUR_MASTER_IP:6379/0
 ```
-docker ps
+
+Replace `YOUR_MASTER_IP` with the actual IP address of your master node (e.g., 172.29.25.15).
+
+### 3. Build and Start the Worker
+
+```bash
+# Build the worker
+docker-compose -f worker-compose.yaml build
+
+# Start the worker
+docker-compose -f worker-compose.yaml up -d
 ```
 
-Once you notice that all containers are healthy. 
+The worker will automatically register itself with the master node. You can view connected workers in the Airflow UI under Admin > Clusters.
 
-Add a connection to Postgres via command line and then Access Airflow UI
+## Troubleshooting
 
-```
-docker exec -it airflow-docker_airflow-worker airflow connections add 'postgres_new' --conn-uri 'postgres://airflow:airflow@postgres:5432/airflow'
-```
+### Common Issues
 
-```
-http://localhost:8080
-```
+1. **Database Connection Issues**: Ensure PostgreSQL is accessible from worker nodes on port 5433
 
+2. **Redis Connection Issues**: Ensure Redis is accessible from worker nodes on port 6379
 
-End with an example of getting some data out of the system or using it for a little demo.
+3. **Package Conflicts**: If you encounter dependency conflicts, update your requirements.txt. Note that apache-airflow-providers-redis 3.4.1 conflicts with redis==4.5.5, use redis==4.5.4 instead.
 
-## 🔧 Running the tests <a name = "tests"></a>
+4. **Hostname Display Issues**: The worker config uses IP address as hostname by default. If you need to customize it, edit the `AIRFLOW__CORE__HOSTNAME_CALLABLE` in worker-compose.yaml.
 
-Unit test for airflow dags has been defined and present in the `test` folder. This folder is also mapped to the docker containers inside the docker-compose.yaml file.
-Follow below steps to execute unittests after the docker containers are running:
-```
-./airflow bash
-python -m unittest discover -v
+## Stopping the Services
+
+### Master Node
+```bash
+docker-compose -f docker-compose.yaml down
 ```
 
-### Github Workflow for running tests <a name="githubworkflow"></a>
-I had to create another docker-compose to be able to execute unit tests whenever I push code to master. 
-Please refer
-- [Docker Compose for github workflow](./docker-compose-githubworkflow.yaml)
-- [Workflow Yaml file](./.github/workflows/main.yml)
-
-
-### Break down into end to end tests
-
-Another #TODO
-
-## 🎈 Usage <a name="usage"></a>
-
-Now you can create new dags and place them in your local system and can see it coming live on web UI. Refer the sample dag in the repo. 
-
-  ### ~~Important~~ : 
-  ~~Edit the postgres_default connection from the UI or through command line if you want to persist data in postgres as part of the dags you create. Even better you can always add a new connection.~~
-
-    Update: This is now taken care of the in the updated Docker compose file. The connection and the new database are created
-
-  ```
-  ./airflow.sh bash
-
-  airflow connections add 'postgres_new' --conn-uri 'postgres://airflow:airflow@postgres:5432/airflow'
-
-  connect to postgres and create new database with name 'userdata'
-
-  ```
-  docker exec -it airflowdocker_postgres_1 /bin/bash
-  psql -U airflow
-  create database userdata;
-  ```
-
-  Turn on Dag: PostgreOperatorTest_Dag
-  ```
-
-## ⛏️ Built Using <a name = "built_using"></a>
-
-- [Postgres](https://www.postgresql.org/) - Database
-- [Redis](https://redis.io/) 
-- [Apache Airflow](https://airflow.apache.org/) 
-- [Docker](https://www.docker.com/) - build Tool
-- [Apache Superset](https://superset.apache.org/) - For Data visualization
-
-## ✍️ Authors <a name = "authors"></a>
-
-- The Airflow community
-- [@anilkulkarni87](https://github.com/anilkulkarni87) 
-
-## 🎉 Acknowledgements <a name = "acknowledgement"></a>
-
-- [Apache Airflow](#https://github.com/apache/airflow/blob/master/docs/apache-airflow/start/docker-compose.yaml)
-- Inspiration is the Airflow Community
-
-## Cleanup <a name = "cleanup"></a>
-
+### Worker Node
+```bash
+docker-compose -f worker-compose.yaml down
 ```
-docker-compose down --volumes --rmi all
-```
+
+## Additional Services
+
+- **Flower**: Celery monitoring tool available at `http://localhost:5555`
+- **Superset**: Data exploration and visualization at `http://localhost:8091`
+- **MinIO**: Object storage service at `http://localhost:9001` (Console) and `http://localhost:9000` (API)

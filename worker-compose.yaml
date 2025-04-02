@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  airflow-worker:
+    build:
+      context: .
+      dockerfile: worker.dockerfile
+    restart: always
+    environment:
+      # Use IP address as the worker's hostname
+      AIRFLOW__CORE__HOSTNAME_CALLABLE: 'airflow.utils.net.get_host_ip_address'
+    volumes:
+      # Mount the same DAGs, plugins, and logs directory as the master
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - ./logs:/opt/airflow/logs
+      - ./scripts:/opt/airflow/scripts
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 30s
+      timeout: 30s
+      retries: 10 

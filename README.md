@@ -112,6 +112,68 @@ docker-compose -f worker-compose.yaml up -d
 
 The worker will automatically register itself with the master node. You can view connected workers in the Airflow UI under Admin > Clusters.
 
+### 4. Directing Tasks to Specific Workers
+
+To send tasks to specific workers, use the queue system:
+
+1. Configure workers to listen to specific queues:
+
+   ```yaml
+   # In worker-compose.yaml
+   services:
+     airflow-worker1:
+       # ... other settings ...
+       environment:
+         # ... other environment variables ...
+         AIRFLOW__CELERY__CELERY_QUEUES: 'default,worker1'
+       command: celery worker -q default,worker1
+     
+     airflow-worker2:
+       # ... other settings ...
+       environment:
+         # ... other environment variables ...
+         AIRFLOW__CELERY__CELERY_QUEUES: 'default,worker2'
+       command: celery worker -q default,worker2
+   ```
+
+2. In your DAG files, assign tasks to specific queues:
+
+   ```python
+   # Task that will run on any worker (default queue)
+   default_task = BashOperator(
+       task_id='default_task',
+       bash_command='echo "Running on default queue"',
+       dag=dag,
+   )
+   
+   # Task that will run only on worker1
+   worker1_task = BashOperator(
+       task_id='worker1_task',
+       bash_command='echo "Running on worker1"',
+       queue='worker1',
+       dag=dag,
+   )
+   
+   # Task that will run only on worker2
+   worker2_task = BashOperator(
+       task_id='worker2_task',
+       bash_command='echo "Running on worker2"',
+       queue='worker2',
+       dag=dag,
+   )
+   ```
+
+With this setup:
+- Tasks assigned to the 'default' queue will run on any available worker
+- Tasks assigned to the 'worker1' queue will only run on airflow-worker1
+- Tasks assigned to the 'worker2' queue will only run on airflow-worker2
+
+### 5. Checking Worker Status
+
+You can check which workers are active and what queues they're subscribed to in the Airflow UI:
+1. Go to Admin → Clusters
+2. Check the "Queues" column to see which queues each worker is processing
+
 ## Troubleshooting
 
 ### Common Issues

@@ -23,7 +23,7 @@ RUN mkdir -p /sources/logs /sources/dags /sources/plugins \
 # Switch back to airflow user for better security
 USER airflow
 
-# Install additional Python packages
-COPY requirements.txt /requirements.txt
-RUN pip install --no-cache-dir -r /requirements.txt
+# Install master node Python packages
+COPY requirements-master.txt /requirements-master.txt
+RUN pip install --no-cache-dir -r /requirements-master.txt
 

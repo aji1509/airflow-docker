@@ -1,0 +1,17 @@
+apache-airflow==2.7.3
+apache-airflow-providers-postgres==5.6.1
+apache-airflow-providers-redis==3.4.1
+apache-airflow-providers-http==4.5.1
+apache-airflow-providers-amazon==8.6.0
+psycopg2-binary==2.9.6
+Werkzeug==2.2.3
+redis==4.5.4
+flask-limiter==3.5.0
+limits==3.5.0
+flower
+# Additional dependencies for the master node
+flask==2.2.5
+flask-appbuilder==4.3.6
+sqlalchemy==1.4.50
+alembic==1.12.0
+gunicorn==21.2.0 

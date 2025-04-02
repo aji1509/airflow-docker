@@ -29,6 +29,38 @@ The setup uses several directories that are mounted into the containers:
 
 These directories are mounted in both the master and worker containers to ensure consistency across the cluster.
 
+## Requirements Files
+
+This setup uses separate requirements files for the master node and worker nodes:
+
+1. **requirements-master.txt**: Contains all dependencies needed for the Airflow master node (webserver, scheduler, etc.)
+   - Includes UI components (Flask, Flask-AppBuilder)
+   - Includes all database migrations tools (Alembic)
+   - Includes the Flower monitoring tool
+
+2. **requirements-worker.txt**: Contains a minimal set of dependencies needed for worker nodes
+   - Only includes essential Airflow providers needed for task execution
+   - Excludes UI-related packages to keep the image size smaller
+   - You can add task-specific dependencies here as needed
+
+### Customizing Requirements
+
+If your DAGs require additional Python packages:
+
+1. For packages needed on all nodes (master and workers), add them to both files
+2. For packages only needed for task execution, add them only to `requirements-worker.txt`
+3. For packages only needed for the UI or scheduler, add them only to `requirements-master.txt`
+
+After modifying the requirements files, rebuild the respective images:
+
+```bash
+# Rebuild master node
+docker compose -f docker-compose.yaml build
+
+# Rebuild worker nodes
+docker compose -f worker-compose.yaml build
+```
+
 ## Environment Variables
 
 Create a `.env` file in the root directory with the following variables:
@@ -56,7 +88,7 @@ mkdir -p dags logs plugins scripts data pg-init-scripts sql
 
 ```bash
 # Start the Airflow master node
-docker-compose -f docker-compose.yaml up -d
+docker compose -f docker-compose.yaml up -d
 ```
 
 This will initialize the database, create the admin user, and start all required services:
@@ -104,10 +136,10 @@ Replace `YOUR_MASTER_IP` with the actual IP address of your master node (e.g., 1
 
 ```bash
 # Build the worker
-docker-compose -f worker-compose.yaml build
+docker compose -f worker-compose.yaml build
 
 # Start the worker
-docker-compose -f worker-compose.yaml up -d
+docker compose -f worker-compose.yaml up -d
 ```
 
 The worker will automatically register itself with the master node. You can view connected workers in the Airflow UI under Admin > Clusters.
@@ -190,12 +222,12 @@ You can check which workers are active and what queues they're subscribed to in 
 
 ### Master Node
 ```bash
-docker-compose -f docker-compose.yaml down
+docker compose -f docker-compose.yaml down
 ```
 
 ### Worker Node
 ```bash
-docker-compose -f worker-compose.yaml down
+docker compose -f worker-compose.yaml down
 ```
 
 ## Additional Services

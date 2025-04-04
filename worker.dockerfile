@@ -19,11 +19,11 @@ RUN mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins /opt/airfl
     && chown -R airflow:root /opt/airflow \
     && chmod -R g+w /opt/airflow
 
-# Switch back to airflow user for better security
+# Switch to airflow user for pip installations
 USER airflow
 
-# Install additional Python packages if needed (copy requirements from the master)
-COPY requirements-worker.txt /requirements-worker.txt
+# Copy and install requirements - Airflow images require pip to run as the airflow user
+COPY --chown=airflow:root requirements-worker.txt /requirements-worker.txt
 RUN pip install --no-cache-dir -r /requirements-worker.txt
 
 # Set environment variables to connect to the master node
@@ -42,7 +42,8 @@ ENV AIRFLOW__CORE__EXECUTOR=CeleryExecutor \
     AIRFLOW__DATABASE__SQL_ALCHEMY_RETRY_DELAY=5 \
     AIRFLOW__WEBSERVER__BASE_URL=http://172.29.25.15:8080 \
     AIRFLOW__LOGGING__REMOTE_LOGGING=false \
-    AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER=/opt/airflow/logs
+    AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER=/opt/airflow/logs \
+    PYTHONPATH=/opt/airflow:/usr/local/lib/python3.10/site-packages:/home/airflow/.local/lib/python3.10/site-packages
 
 # Command to start the Celery worker
 CMD ["airflow", "celery", "worker"] 

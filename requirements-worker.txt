@@ -7,6 +7,7 @@ apache-airflow-providers-amazon==8.6.0
 # Minimal set of dependencies for workers
 psycopg2-binary==2.9.6
 redis==4.5.4
+celery>=5.2.0
 # Optional: Add any additional task-specific dependencies below
 # For example, pandas, requests, etc.
 # pandas==2.0.3

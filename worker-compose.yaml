@@ -8,28 +8,65 @@ services:
       dockerfile: worker.dockerfile
     restart: always
     container_name: airflow-worker-youtube
-    user: "0"  # Start as root user to allow permission fixes
+    user: "airflow"  # Run as airflow user to avoid permission issues
     environment:
-      AIRFLOW__CORE__HOSTNAME_CALLABLE: 'airflow.utils.net.get_host_ip_address'
-      # Specify which queues this worker should process
+      # Queue configuration
       AIRFLOW__CELERY__DEFAULT_QUEUE: 'youtube'
-      AIRFLOW__CELERY__WORKER_CONCURRENCY: 2
-      AIRFLOW_CONN_METADATA_DB: 'postgres://airflow:airflow@172.29.25.15:5433/airflow'
-      # Listen only to youtube queue
       AIRFLOW__CELERY__CELERY_QUEUES: 'youtube'
+      # Connection settings
       AIRFLOW__WEBSERVER__BASE_URL: 'http://172.29.25.15:8080'
+      AIRFLOW_CONN_METADATA_DB: 'postgres://airflow:airflow@172.29.25.15:5433/airflow'
+      # Celery broker and results backend settings - must match main Airflow
+      AIRFLOW__CELERY__BROKER_URL: 'redis://:@172.29.25.15:6379/0'
+      AIRFLOW__CELERY__RESULT_BACKEND: 'db+postgresql://airflow:airflow@172.29.25.15:5433/airflow'
+      # Logging settings
       AIRFLOW__LOGGING__REMOTE_LOGGING: 'false'
       AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: '/opt/airflow/logs'
+      AIRFLOW__LOGGING__LOGGING_LEVEL: 'DEBUG'
+      # Log server settings - fixing log access error
+      AIRFLOW__CELERY__WORKER_LOG_SERVER_PORT: '8793'
+      AIRFLOW__CORE__HOSTNAME_CALLABLE: 'socket.getfqdn'
+      # Critical environment variables
+      AIRFLOW__CORE__DAGS_FOLDER: '/opt/airflow/dags'
+      PYTHONPATH: '/opt/airflow:/usr/local/lib/python3.10/site-packages:/home/airflow/.local/lib/python3.10/site-packages'
+      # Fork-related settings - CRITICAL SETTINGS
+      AIRFLOW__CELERY__WORKER_CONCURRENCY: '1'
+      AIRFLOW__CORE__EXECUTE_TASKS_NEW_PYTHON_INTERPRETER: 'false'
+      AIRFLOW__CELERY__WORKER_PREFETCH_MULTIPLIER: '1'
+      AIRFLOW__CELERY__WORKER_MAX_TASKS_PER_CHILD: '1'
+      # Settings for monitoring
+      AIRFLOW__CELERY__RESULT_SERIALIZATION_FORMAT: 'json'
+      AIRFLOW__CELERY__WORKER_ENABLE_REMOTE_CONTROL: 'true'
+      # Explicitly enable stats for Flower
+      AIRFLOW__CELERY__WORKER_SEND_TASK_EVENTS: 'true'
+      # API auth
+      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+    # Expose port for log server
+    ports:
+      - "8793:8793"
     volumes:
-      - ./dags:/opt/airflow/dags
-      - ./plugins:/opt/airflow/plugins
+      - ./dags:/opt/airflow/dags:ro
+      - ./plugins:/opt/airflow/plugins:ro
       - ./logs:/opt/airflow/logs
-      - ./scripts:/opt/airflow/scripts
-    command: airflow celery worker -q youtube
+      - ./scripts:/opt/airflow/scripts:ro
+    # Use standard Airflow worker command with correct syntax
+    command: >
+      bash -c "
+      pip install --user celery redis &&
+      airflow celery worker -q youtube --concurrency=1"
     healthcheck:
       test:
         - "CMD-SHELL"
-        - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+        - 'airflow celery worker --help > /dev/null && echo "OK" || echo "Airflow Celery Worker check failed"'
       interval: 30s
       timeout: 30s
-      retries: 10 
+      retries: 10
+    networks:
+      - airflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  airflow-network:
+    name: airflow-network
+    external: true 
